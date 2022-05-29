@@ -1,0 +1,34 @@
+1. Distribtued call start from mrmaster.go, this file baseically just create a 
+   Master variable(struct), and pass in the list of file names that need to be 
+   processed  the number of reducers(10). It called CreateMaster()
+2. We add workers by manually run mrworker.go, it will call mr.Worker(), which 
+   is the main operations of worker.
+3. It needs to ask the master for the task first.
+4. Then fill in the real work
+
+worker function:
+1. Ask for task by calling the RPC with worker_id as 0.
+2. The server will return a positive worker_id and work
+3. Worker will do the work based on the assignment from the master
+    3.1 The mapper will write the mapper result to mr-worker_id-*
+    3.2 The reducer will read from mr-*-worker_id and output to mr-worker_id
+4. Worker will send another RPC to the server indicate the work is done
+5. Based on Server's respond, the worker may continue to work
+
+server function:
+1. When a RPC call received. The server will judge from its worker_id:
+    1.1 If the worker_id is 0, it's a new turn of worker, assign a new
+        id to the worker. If there are mapper work left, do the mapper 
+        work first, then do the reducer work.
+    1.2 If the worker_id is larger than 0 and worker_status == 1, mark
+        the corresponding work as done
+2. The server needs to track down 2 things:
+    2.1 The list of jobs remains unfinished:
+        2.1.1 The list of input files that need to be assigned to a mapper
+        2.1.2 The list of reducing files that need to be generated from a reducer
+        2.1.3 For each job it will be stored as a k-v as id: starting time
+    2.2 The global mapper id, ranged from 0 to num_of_input_files
+    2.3 The global reducer id, ranged from 0 to number_of_reducers
+3. Check every worker's live time, if it's more than 10 seconds, then this job 
+   should be marked as failed and ready to reassign to the next avaiable worker
+4. Once all works are done, report done.
